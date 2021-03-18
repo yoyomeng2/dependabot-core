@@ -70,29 +70,62 @@ module Dependabot
         dependency.version
       end
 
-      def updated_requirements
-        dependency.requirements.map do |req|
-          updated_source = req.fetch(:source).dup
-          updated_source[:digest] = updated_digest if req[:source][:digest]
-          updated_source[:tag] = fetch_latest_version(req[:source][:tag]) if req[:source][:tag]
+      def latest_version_resolvable_with_full_unlock?
+        true
+      end
 
-          req.merge(source: updated_source)
+      def updated_dependencies_after_full_unlock
+        extracted_dependencies.map do |dep|
+          new_reqs = dep.requirements.map do |req|
+            updated_source = req.fetch(:source).dup
+            updated_source[:digest] = updated_digest if req[:source][:digest]
+            updated_source[:tag] = fetch_latest_version(req[:source][:tag]) if req[:source][:tag]
+
+            req.merge(source: updated_source)
+          end
+
+          Dependency.new(
+            name: dep.name,
+            version: fetch_latest_version(dep.version),
+            package_manager: dep.package_manager,
+            requirements: new_reqs,
+            previous_requirements: dep.requirements,
+            previous_version: dep.version
+          )
         end
       end
 
       private
 
-      def latest_version_resolvable_with_full_unlock?
-        # Full unlock checks aren't relevant for Dockerfiles
+      def preferred_version_resolvable_with_unlock?
+        # Allow full_unlock path which allows us to return multiple updated dependencies
         false
       end
 
-      def updated_dependencies_after_full_unlock
-        raise NotImplementedError
+      def extracted_dependencies
+        return @extracted_dependencies if @extracted_dependencies
+
+        @extracted_dependencies = []
+        dependency.requirements.each do |req|
+          req_version = req.fetch(:source, {})[:tag]
+          existing = @extracted_dependencies.find { |d| comparable_tags?(req_version, d.version) }
+          if existing
+            existing.requirements.push(req)
+          else
+            @extracted_dependencies << Dependency.new(
+              name: dependency.name,
+              version: req_version,
+              package_manager: dependency.package_manager,
+              requirements: [req]
+            )
+          end
+        end
+
+        @extracted_dependencies
       end
 
-      def version_can_update?(*)
-        !version_up_to_date?
+      def version_can_update?(requirements_to_unlock:)
+        requirements_to_unlock == :all && !version_up_to_date?
       end
 
       def version_up_to_date?
@@ -176,6 +209,14 @@ module Dependabot
           select { |tag| suffix_of(tag) == original_suffix }.
           select { |tag| format_of(tag) == original_format }.
           reject { |tag| commit_sha_suffix?(tag) }
+      end
+
+      def comparable_tags?(tag_a, tag_b)
+        return false unless tag_a&.match?(NAME_WITH_VERSION) && tag_b&.match?(NAME_WITH_VERSION)
+
+        prefix_of(tag_a) == prefix_of(tag_b) &&
+          suffix_of(tag_a) == suffix_of(tag_b) &&
+          format_of(tag_a) == format_of(tag_b)
       end
 
       def remove_version_downgrades(candidate_tags, version)
