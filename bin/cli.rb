@@ -208,25 +208,26 @@ def parse_dependencies(options:, credentials:, files:, update_config:, repo_cont
 end
 
 def fetch_security_advisories(dependencies:)
-  advisories_query = GitHubGraphQL.client.parse <<-'GRAPHQL'
-    mutation($id: ID!, $reaction: ReactionContent!) {
-      addReaction(input: { subjectId: $id, content: $reaction }) {
-        reaction {
-          content
-        }
-        subject {
-          id
-        }
-      }
-    }
-  GRAPHQL
-  GitHubGraphQL.client.query(
-    advisories_query,
-    context: {
-      access_token: ENV["LOCAL_GITHUB_ACCESS_TOKEN"],
-      accept_header: "application/json",
-    },
-  )
+  # advisories_query = GitHubGraphQL.client.parse <<-'GRAPHQL'
+  #   mutation($id: ID!, $reaction: ReactionContent!) {
+  #     addReaction(input: { subjectId: $id, content: $reaction }) {
+  #       reaction {
+  #         content
+  #       }
+  #       subject {
+  #         id
+  #       }
+  #     }
+  #   }
+  # GRAPHQL
+  # GitHubGraphQL.client.query(
+  #   advisories_query,
+  #   context: {
+  #     access_token: ENV["LOCAL_GITHUB_ACCESS_TOKEN"],
+  #     accept_header: "application/json",
+  #   },
+  # )
+  []
 end
 
 module CLI
@@ -245,7 +246,6 @@ module CLI
                                         repo_contents_path: repo_contents_path)
 
       security_advisories = fetch_security_advisories(dependencies: dependencies)
-      byebug
       if options.dependency_names.nil?
         dependencies = dependencies.select(&:top_level?)
 
