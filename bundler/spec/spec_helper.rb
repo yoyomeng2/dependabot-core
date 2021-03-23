@@ -10,15 +10,29 @@ end
 
 require "#{common_dir}/spec/spec_helper.rb"
 
-def bundler_2_available?
-  ENV["SUITE_NAME"] == "bundler2"
+module PackageManagerHelper
+  def self.use_bundler_2?
+    ENV["SUITE_NAME"] == "bundler2"
+  end
+
+  def self.use_bundler_1?
+    !use_bundler_2?
+  end
+
+  def self.bundler_version
+    use_bundler_2? ? "2" : "1"
+  end
+
+  def self.bundler_project_dependency_files(project)
+    project_dependency_files(File.join("bundler#{bundler_version}", project))
+  end
 end
 
 RSpec.configure do |config|
   config.around do |example|
-    if bundler_2_available? && example.metadata[:bundler_v1_only]
+    if PackageManagerHelper.use_bundler_2? && example.metadata[:bundler_v1_only]
       example.skip
-    elsif !bundler_2_available? && example.metadata[:bundler_v2_only]
+    elsif PackageManagerHelper.use_bundler_1? && example.metadata[:bundler_v2_only]
       example.skip
     else
       example.run

@@ -21,11 +21,11 @@ RSpec.describe Dependabot::Bundler::UpdateChecker::LatestVersionFinder do
         "password" => "token"
       }],
       options: {
-        bundler_2_available: bundler_2_available?
+        bundler_2_available: PackageManagerHelper.use_bundler_2?
       }
     )
   end
-  let(:bundler_version) { bundler_2_available? ? "2" : "1" }
+  let(:bundler_version) { PackageManagerHelper.bundler_version }
   let(:dependency_files) { [gemfile, lockfile] }
   let(:ignored_versions) { [] }
   let(:raise_on_ignored) { false }
