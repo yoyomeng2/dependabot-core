@@ -2,12 +2,9 @@
 
 require "excon"
 
-# require "dependabot/bundler/update_checker"
-# require "dependabot/bundler/requirement"
 require "dependabot/shared_helpers"
 require "dependabot/errors"
 require "dependabot/go_modules/resolvability_errors"
-# require "dependabot/go_modules/update_checker/latest_version_finder/dependency_source"
 
 module Dependabot
   module GoModules
@@ -26,7 +23,6 @@ module Dependabot
                        ignored_versions:, raise_on_ignored: false)
           @dependency          = dependency
           @dependency_files    = dependency_files
-          # @repo_contents_path  = repo_contents_path
           @credentials         = credentials
           @ignored_versions    = ignored_versions
           @raise_on_ignored    = raise_on_ignored
@@ -44,6 +40,16 @@ module Dependabot
           pseudo_version_regex = /\b\d{14}-[0-9a-f]{12}$/
           return dependency.version if dependency.version =~ pseudo_version_regex
 
+          current_version = version_class.new(dependency.version)
+
+          candidate_versions = available_versions
+          candidate_versions = filter_prerelease_versions(candidate_versions)
+          candidate_versions = filter_lower_versions(candidate_versions)
+
+          candidate_versions.max
+        end
+
+        def available_versions
           SharedHelpers.in_a_temporary_directory do
             SharedHelpers.with_git_configured(credentials: credentials) do
               File.write("go.mod", go_mod.content)
@@ -64,12 +70,8 @@ module Dependabot
                 }
               )
 
-              # TODO: Refactor
-              current_version = version_class.new(dependency.version)
-              candidate_versions = version_strings.select { |v| version_class.correct?(v) }
-                                                  .map { |v| version_class.new(v) }
-              prereleases, stable_releases = candidate_versions.partition { |v| v.prerelease? }
-              current_version.prerelease? ? prereleases.max : stable_releases.max
+              version_strings.select { |v| version_class.correct?(v) }
+                             .map { |v| version_class.new(v) }
             end
           end
         rescue SharedHelpers::HelperSubprocessFailed => e
@@ -98,20 +100,15 @@ module Dependabot
           @go_mod ||= dependency_files.find { |f| f.name == "go.mod" }
         end
 
-        # def fetch_latest_version
-        #   return dependency_source.latest_git_version_details if dependency_source.git?
-
-        #   relevant_versions = dependency_source.versions
-        #   relevant_versions = filter_prerelease_versions(relevant_versions)
-        #   relevant_versions = filter_ignored_versions(relevant_versions)
-
-        #   relevant_versions.empty? ? nil : { version: relevant_versions.max }
-        # end
-
         def filter_prerelease_versions(versions_array)
           return versions_array if wants_prerelease?
 
           versions_array.reject(&:prerelease?)
+        end
+
+        def filter_lower_versions(versions_array)
+          versions_array.
+            select { |version| version > Gem::Version.new(dependency.version) }
         end
 
         def filter_ignored_versions(versions_array)
@@ -122,33 +119,13 @@ module Dependabot
           filtered
         end
 
-        def filter_lower_versions(versions_array)
-          versions_array.
-            select { |version| version > Gem::Version.new(dependency.version) }
-        end
-
         def wants_prerelease?
           @wants_prerelease ||=
             begin
               current_version = dependency.version
-              if current_version && Gem::Version.correct?(current_version) &&
-                 Gem::Version.new(current_version).prerelease?
-                return true
-              end
-
-              dependency.requirements.any? do |req|
-                req[:requirement].match?(/[a-z]/i)
-              end
+              current_version && Gem::Version.correct?(current_version) &&
+                Gem::Version.new(current_version).prerelease?
             end
-        end
-
-        def dependency_source
-          @dependency_source ||= DependencySource.new(
-            dependency: dependency,
-            dependency_files: dependency_files,
-            credentials: credentials,
-            options: options
-          )
         end
 
         def ignore_requirements
@@ -163,11 +140,6 @@ module Dependabot
 
         def version_class
           Utils.version_class_for_package_manager(dependency.package_manager)
-        end
-
-        def gemfile
-          dependency_files.find { |f| f.name == "Gemfile" } ||
-            dependency_files.find { |f| f.name == "gems.rb" }
         end
       end
     end
