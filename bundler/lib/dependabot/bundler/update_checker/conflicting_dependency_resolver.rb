@@ -40,8 +40,7 @@ module Dependabot
                 dependency_name: dependency.name,
                 target_version: target_version,
                 credentials: credentials,
-                lockfile_name: lockfile.name,
-                using_bundler2: using_bundler2?
+                lockfile_name: lockfile.name
               }
             )
           end
@@ -50,7 +49,7 @@ module Dependabot
         private
 
         def bundler_version
-          @bundler_version ||= Helpers.bundler_version(lockfile, options: options)
+          @bundler_version ||= Helpers.bundler_version(lockfile)
         end
       end
     end

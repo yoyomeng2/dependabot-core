@@ -6,6 +6,7 @@ require "dependabot/gradle/file_parser/repositories_finder"
 require "dependabot/gradle/update_checker"
 require "dependabot/gradle/version"
 require "dependabot/gradle/requirement"
+require "dependabot/maven/utils/auth_headers_finder"
 
 module Dependabot
   module Gradle
@@ -15,8 +16,6 @@ module Dependabot
         GRADLE_PLUGINS_REPO = "https://plugins.gradle.org/m2"
         KOTLIN_PLUGIN_REPO_PREFIX = "org.jetbrains.kotlin"
         TYPE_SUFFICES = %w(jre android java).freeze
-
-        GRADLE_RANGE_REGEX = /[\(\[].*,.*[\)\]]/.freeze
 
         def initialize(dependency:, dependency_files:, credentials:,
                        ignored_versions:, raise_on_ignored: false,
@@ -98,13 +97,16 @@ module Dependabot
           filtered = possible_versions
 
           ignored_versions.each do |req|
-            ignore_req = Gradle::Requirement.new(parse_requirement_string(req))
+            ignore_requirements = Gradle::Requirement.requirements_array(req)
             filtered =
               filtered.
-              reject { |v| ignore_req.satisfied_by?(v.fetch(:version)) }
+              reject { |v| ignore_requirements.any? { |r| r.satisfied_by?(v.fetch(:version)) } }
           end
 
-          raise AllVersionsIgnored if @raise_on_ignored && filtered.empty? && possible_versions.any?
+          if @raise_on_ignored && filter_lower_versions(filtered).empty? &&
+             filter_lower_versions(possible_versions).any?
+            raise AllVersionsIgnored
+          end
 
           filtered
         end
@@ -122,15 +124,11 @@ module Dependabot
         end
 
         def filter_lower_versions(possible_versions)
+          return possible_versions unless dependency.version && version_class.correct?(dependency.version)
+
           possible_versions.select do |v|
             v.fetch(:version) > version_class.new(dependency.version)
           end
-        end
-
-        def parse_requirement_string(string)
-          return string if string.match?(GRADLE_RANGE_REGEX)
-
-          string.split(",").map(&:strip)
         end
 
         def wants_prerelease?
@@ -184,10 +182,8 @@ module Dependabot
             begin
               response = Excon.get(
                 dependency_metadata_url(repository_details.fetch("url")),
-                user: repository_details.fetch("username"),
-                password: repository_details.fetch("password"),
                 idempotent: true,
-                **SharedHelpers.excon_defaults
+                **Dependabot::SharedHelpers.excon_defaults(headers: repository_details.fetch("auth_headers"))
               )
               check_response(response, repository_details.fetch("url"))
               Nokogiri::XML(response.body)
@@ -226,10 +222,10 @@ module Dependabot
 
           @repositories =
             details.reject do |repo|
-              next if repo["password"]
+              next if repo["auth_headers"]
 
-              # Reject this entry if an identical one with a password exists
-              details.any? { |r| r["url"] == repo["url"] && r["password"] }
+              # Reject this entry if an identical one with non-empty auth_headers exists
+              details.any? { |r| r["url"] == repo["url"] && r["auth_headers"] != {} }
             end
         end
 
@@ -239,8 +235,7 @@ module Dependabot
             map do |cred|
             {
               "url" => cred.fetch("url").gsub(%r{/+$}, ""),
-              "username" => cred.fetch("username", nil),
-              "password" => cred.fetch("password", nil)
+              "auth_headers" => auth_headers(cred.fetch("url").gsub(%r{/+$}, ""))
             }
           end
         end
@@ -258,7 +253,7 @@ module Dependabot
                 target_dependency_file: target_file
               ).repository_urls.
                 map do |url|
-                  { "url" => url, "username" => nil, "password" => nil }
+                  { "url" => url, "auth_headers" => {} }
                 end
             end.uniq
         end
@@ -266,8 +261,7 @@ module Dependabot
         def plugin_repository_details
           [{
             "url" => GRADLE_PLUGINS_REPO,
-            "username" => nil,
-            "password" => nil
+            "auth_headers" => {}
           }] + dependency_repository_details
         end
 
@@ -332,6 +326,14 @@ module Dependabot
 
         def version_class
           Gradle::Version
+        end
+
+        def auth_headers_finder
+          @auth_headers_finder ||= Dependabot::Maven::Utils::AuthHeadersFinder.new(credentials)
+        end
+
+        def auth_headers(maven_repo_url)
+          auth_headers_finder.auth_headers(maven_repo_url)
         end
       end
     end

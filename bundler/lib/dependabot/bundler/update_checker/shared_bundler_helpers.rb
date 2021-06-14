@@ -170,8 +170,7 @@ module Dependabot
               args: {
                 dir: tmp_dir,
                 gemfile_name: gemfile.name,
-                credentials: credentials,
-                using_bundler2: using_bundler2?
+                credentials: credentials
               }
             )
             git_specs.reject do |spec|
@@ -187,15 +186,16 @@ module Dependabot
         end
 
         def jfrog_source
-          in_a_native_bundler_context(error_handling: false) do |dir|
+          return @jfrog_source unless defined?(@jfrog_source)
+
+          @jfrog_source = in_a_native_bundler_context(error_handling: false) do |dir|
             NativeHelpers.run_bundler_subprocess(
               bundler_version: bundler_version,
               function: "jfrog_source",
               args: {
                 dir: dir,
                 gemfile_name: gemfile.name,
-                credentials: credentials,
-                using_bundler2: using_bundler2?
+                credentials: credentials
               }
             )
           end
@@ -230,12 +230,6 @@ module Dependabot
         def sanitized_lockfile_body
           re = FileUpdater::LockfileUpdater::LOCKFILE_ENDING
           lockfile.content.gsub(re, "")
-        end
-
-        def using_bundler2?
-          return unless lockfile
-
-          lockfile.content.match?(/BUNDLED WITH\s+2/m)
         end
       end
     end

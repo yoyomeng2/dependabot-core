@@ -128,13 +128,11 @@ module Dependabot
       def declaration_finder(dependency, requirement)
         @declaration_finders ||= {}
         @declaration_finders[dependency.hash + requirement.hash] ||=
-          begin
-            DeclarationFinder.new(
-              dependency: dependency,
-              declaring_requirement: requirement,
-              dependency_files: dependency_files
-            )
-          end
+          DeclarationFinder.new(
+            dependency: dependency,
+            declaring_requirement: requirement,
+            dependency_files: dependency_files
+          )
       end
 
       def updated_file_declaration(old_declaration, previous_req, requirement)

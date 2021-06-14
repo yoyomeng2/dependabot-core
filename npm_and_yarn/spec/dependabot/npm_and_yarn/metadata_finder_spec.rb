@@ -275,7 +275,7 @@ RSpec.describe Dependabot::NpmAndYarn::MetadataFinder do
               requirement: "^1.0",
               groups: [],
               source: {
-                type: "private_registry",
+                type: "registry",
                 url: "https://npm.fury.io/dependabot"
               }
             }],
@@ -320,6 +320,73 @@ RSpec.describe Dependabot::NpmAndYarn::MetadataFinder do
 
           it { is_expected.to be_nil }
         end
+      end
+    end
+
+    context "when multiple sources are detected" do
+      let(:npm_latest_version_response) { nil }
+      let(:npm_all_versions_response) { nil }
+      let(:dependency_name) { "@etag/etag" }
+
+      let(:credentials) do
+        [
+          {
+            "type" => "git_source",
+            "host" => "github.com",
+            "username" => "x-access-token",
+            "password" => "token"
+          },
+          {
+            "type" => "npm_registry",
+            "registry" => "npm.fury.io/dependabot",
+            "token" => "secret_token"
+          }
+        ]
+      end
+
+      let(:dependency) do
+        Dependabot::Dependency.new(
+          name: dependency_name,
+          version: "1.0",
+          requirements: [
+            {
+              file: "package.json",
+              requirement: "^1.0",
+              groups: [],
+              source: {
+                type: "registry",
+                url: "https://registry.npmjs.org"
+              }
+            },
+            {
+              file: "package.json",
+              requirement: "^1.0",
+              groups: [],
+              source: {
+                type: "registry",
+                url: "https://npm.fury.io/dependabot"
+              }
+            }
+          ],
+          package_manager: "npm_and_yarn"
+        )
+      end
+
+      before do
+        stub_request(
+          :get, "https://npm.fury.io/dependabot/@etag%2Fetag/latest"
+        ).to_return(status: 404, body: '{"error":"Not found"}').times(2)
+
+        stub_request(:get, "https://npm.fury.io/dependabot/@etag%2Fetag").
+          with(headers: { "Authorization" => "Bearer secret_token" }).
+          to_return(
+            status: 200,
+            body: fixture("gemfury_responses", "gemfury_response_etag.json")
+          )
+      end
+
+      it "prefers to fetch metadata from the private registry" do
+        expect(subject).to eq("https://github.com/jshttp/etag")
       end
     end
   end

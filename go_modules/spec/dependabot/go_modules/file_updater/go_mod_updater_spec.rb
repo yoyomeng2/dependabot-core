@@ -110,6 +110,43 @@ RSpec.describe Dependabot::GoModules::FileUpdater::GoModUpdater do
           it { is_expected.to include("retract v1.0.5") }
         end
 
+        describe "a dependency who's module path has changed during an update" do
+          let(:project_name) { "module_path_and_version_changed_during_update" }
+          let(:dependency_name) { "gopkg.in/DATA-DOG/go-sqlmock.v1" }
+          let(:dependency_version) { "v1.3.3" }
+          let(:dependency_previous_version) { "v1.3.0" }
+          let(:requirements) do
+            [{
+              file: "go.mod",
+              requirement: dependency_version,
+              groups: [],
+              source: {
+                type: "default",
+                source: dependency_name
+              }
+            }]
+          end
+          let(:previous_requirements) do
+            [{
+              file: "go.mod",
+              requirement: dependency_previous_version,
+              groups: [],
+              source: {
+                type: "default",
+                source: dependency_name
+              }
+            }]
+          end
+
+          it "raises the correct error" do
+            error_class = Dependabot::GoModulePathMismatch
+            expect { updater.updated_go_sum_content }.
+              to raise_error(error_class) do |error|
+              expect(error.message).to include("github.com/DATA-DOG")
+            end
+          end
+        end
+
         describe "a dependency who's module path has changed (inc version)" do
           let(:project_name) { "module_path_and_version_changed" }
 
@@ -283,6 +320,30 @@ RSpec.describe Dependabot::GoModules::FileUpdater::GoModUpdater do
       end
     end
 
+    context "when the remote end hangs up unexpectedly" do
+      let(:dependency_name) { "github.com/spf13/viper" }
+      let(:dependency_version) { "v1.7.1" }
+      let(:dependency_previous_version) { "v1.7.1" }
+      let(:requirements) { [] }
+      let(:previous_requirements) { [] }
+      let(:exit_status) { double(status: 128, success?: false) }
+      let(:stderr) do
+        <<~ERROR
+          go: github.com/spf13/viper@v1.7.1 requires
+          	github.com/grpc-ecosystem/grpc-gateway@v1.9.0 requires
+          	gopkg.in/yaml.v2@v2.0.0-20170812160011-eb3733d160e7: invalid version: git fetch --unshallow -f origin in /opt/go/gopath/pkg/mod/cache/vcs/sha1: exit status 128:
+          	fatal: The remote end hung up unexpectedly
+        ERROR
+      end
+
+      before do
+        allow(Open3).to receive(:capture3).and_call_original
+        allow(Open3).to receive(:capture3).with(anything, "go get -d").and_return(["", stderr, exit_status])
+      end
+
+      it { expect { subject }.to raise_error(Dependabot::DependencyFileNotResolvable, /The remote end hung up/) }
+    end
+
     context "for an explicit indirect dependency" do
       let(:project_name) { "indirect" }
       let(:dependency_name) { "github.com/mattn/go-isatty" }
@@ -430,6 +491,71 @@ RSpec.describe Dependabot::GoModules::FileUpdater::GoModUpdater do
         expect { updater.updated_go_sum_content }.
           to raise_error(error_class) do |error|
           expect(error.message).to include("go.mod has post-v0 module path")
+        end
+      end
+    end
+
+    context "for a invalid pseudo version" do
+      let(:project_name) { "invalid_pseudo_version" }
+      let(:dependency_name) do
+        "rsc.io/quote"
+      end
+      let(:dependency_version) { "v1.5.2" }
+      let(:dependency_previous_version) { "v1.4.0" }
+      let(:requirements) do
+        [{
+          file: "go.mod",
+          requirement: dependency_version,
+          groups: [],
+          source: {
+            type: "default",
+            source: "rsc.io/quote"
+          }
+        }]
+      end
+      let(:previous_requirements) { [] }
+
+      it "raises the correct error" do
+        error_class = Dependabot::DependencyFileNotResolvable
+        expect { updater.updated_go_sum_content }.
+          to raise_error(error_class) do |error|
+          expect(error.message).to include(
+            "go: github.com/openshift/api@v3.9.1-0.20190424152011-77b8897ec79a+incompatible: " \
+            "invalid pseudo-version:"
+          )
+        end
+      end
+    end
+
+    context "for an unknown revision version" do
+      let(:project_name) { "unknown_revision_version" }
+      let(:dependency_name) do
+        "github.com/deislabs/oras"
+      end
+      let(:dependency_version) { "v0.10.0" }
+      let(:dependency_previous_version) { "v0.9.0" }
+      let(:requirements) do
+        [{
+          file: "go.mod",
+          requirement: dependency_version,
+          groups: [],
+          source: {
+            type: "default",
+            source: "github.com/deislabs/oras"
+          }
+        }]
+      end
+      let(:previous_requirements) { [] }
+
+      it "raises the correct error" do
+        error_class = Dependabot::DependencyFileNotResolvable
+        expect { updater.updated_go_sum_content }.
+          to raise_error(error_class) do |error|
+          expect(error.message).to include(
+            "go: github.com/deislabs/oras@v0.9.0 requires\n"\
+            "	github.com/docker/distribution@v0.0.0-00010101000000-000000000000: "\
+            "invalid version: unknown revision"
+          )
         end
       end
     end

@@ -6,6 +6,7 @@ require "vcr"
 require "byebug"
 require "simplecov"
 require "simplecov-console"
+require "stackprof"
 
 require "dependabot/dependency_file"
 require_relative "dummy_package_manager/dummy"
@@ -34,6 +35,18 @@ RSpec.configure do |config|
   config.order = :rand
   config.mock_with(:rspec) { |mocks| mocks.verify_partial_doubles = true }
   config.raise_errors_for_deprecations!
+
+  config.around do |example|
+    if example.metadata[:profile]
+      example_name = example.metadata[:full_description].strip.gsub(/[\s#\.-]/, "_").gsub("::", "_").downcase
+      name = "../tmp/stackprof_#{example_name}.dump"
+      StackProf.run(mode: :wall, interval: 100, raw: true, out: name) do
+        example.run
+      end
+    else
+      example.run
+    end
+  end
 end
 
 VCR.configure do |config|
@@ -70,8 +83,8 @@ end
 # @param project [String] the project directory, located in
 # "spec/fixtures/projects"
 # @return [String] the path to the new temp repo.
-def build_tmp_repo(project)
-  project_path = File.expand_path(File.join("spec/fixtures/projects", project))
+def build_tmp_repo(project, path: "projects")
+  project_path = File.expand_path(File.join("spec/fixtures", path, project))
 
   tmp_dir = Dependabot::Utils::BUMP_TMP_DIR_PATH
   prefix = Dependabot::Utils::BUMP_TMP_FILE_PREFIX
@@ -93,6 +106,9 @@ end
 
 def project_dependency_files(project)
   project_path = File.expand_path(File.join("spec/fixtures/projects", project))
+
+  raise "Fixture does not exist for project: '#{project}'" unless Dir.exist?(project_path)
+
   Dir.chdir(project_path) do
     # NOTE: Include dotfiles (e.g. .npmrc)
     files = Dir.glob("**/*", File::FNM_DOTMATCH)
@@ -117,14 +133,14 @@ end
 
 # Spec helper to provide GitHub credentials if set via an environment variable
 def github_credentials
-  if ENV["DEPENDABOT_TEST_ACCESS_TOKEN"].nil?
+  if ENV["DEPENDABOT_TEST_ACCESS_TOKEN"].nil? && ENV["LOCAL_GITHUB_ACCESS_TOKEN"].nil?
     []
   else
     [{
       "type" => "git_source",
       "host" => "github.com",
       "username" => "x-access-token",
-      "password" => ENV["DEPENDABOT_TEST_ACCESS_TOKEN"]
+      "password" => ENV["DEPENDABOT_TEST_ACCESS_TOKEN"] || ENV["LOCAL_GITHUB_ACCESS_TOKEN"]
     }]
   end
 end

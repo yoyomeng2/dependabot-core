@@ -201,9 +201,11 @@ module Dependabot
           }
         ]
 
-        post(source.api_endpoint + source.organization + "/" + source.project +
-          "/_apis/git/repositories/" + source.unscoped_repo +
-          "/refs?api-version=5.0", content.to_json)
+        response = post(source.api_endpoint + source.organization + "/" + source.project +
+                        "/_apis/git/repositories/" + source.unscoped_repo +
+                        "/refs?api-version=5.0", content.to_json)
+
+        JSON.parse(response.body).fetch("value").first
       end
       # rubocop:enable Metrics/ParameterLists
 
@@ -232,20 +234,29 @@ module Dependabot
       end
 
       def post(url, json)
-        response = Excon.post(
-          url,
-          body: json,
-          user: credentials&.fetch("username", nil),
-          password: credentials&.fetch("password", nil),
-          idempotent: true,
-          **SharedHelpers.excon_defaults(
-            headers: auth_header.merge(
-              {
-                "Content-Type" => "application/json"
-              }
+        response = nil
+
+        retry_connection_failures do
+          response = Excon.post(
+            url,
+            body: json,
+            user: credentials&.fetch("username", nil),
+            password: credentials&.fetch("password", nil),
+            idempotent: true,
+            **SharedHelpers.excon_defaults(
+              headers: auth_header.merge(
+                {
+                  "Content-Type" => "application/json"
+                }
+              )
             )
           )
-        )
+
+          raise InternalServerError if response.status == 500
+          raise BadGateway if response.status == 502
+          raise ServiceNotAvailable if response.status == 503
+        end
+
         raise NotFound if response.status == 404
 
         response
