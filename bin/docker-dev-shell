@@ -5,7 +5,7 @@ set -e
 CORE_PATH=$(cd "$(dirname "$(dirname "$0")")" && pwd)
 IMAGE_NAME="${IMAGE_NAME:=dependabot/dependabot-core-development}"
 CONTAINER_NAME="${CONTAINER_NAME:=dependabot-core-development}"
-DOCKERFILE="${DOCKERFILE:=Dockerfile.development}"
+DOCKERFILE=Dockerfile.development
 HELP=false
 REBUILD=false
 
