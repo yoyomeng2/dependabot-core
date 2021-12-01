@@ -5,6 +5,7 @@ set -e
 CORE_PATH=$(cd "$(dirname "$(dirname "$0")")" && pwd)
 IMAGE_NAME="${IMAGE_NAME:=dependabot/dependabot-core-development}"
 CONTAINER_NAME="${CONTAINER_NAME:=dependabot-core-development}"
+CONTAINER_CUSTOM_CA_PATH=/usr/local/share/ca-certificates/dbot-ca.crt
 DOCKERFILE=Dockerfile.development
 HELP=false
 REBUILD=false
@@ -200,6 +201,14 @@ start_container() {
     "${DOCKER_OPTS[@]}" \
     --cap-add=SYS_PTRACE \
     "$IMAGE_NAME" "${CONTAINER_ARGS[@]}"
+
+  # If we have been given a custom CA cert, copy it into the container and update the certs
+  if [ -n "$CUSTOM_CA_PATH" ]; then
+    echo "$(tput setaf 2)=> adding custom CA certificate $(tput sgr0)"
+    docker cp "$CUSTOM_CA_PATH" "$CONTAINER_NAME:$CONTAINER_CUSTOM_CA_PATH"
+    docker exec -u 0 -ti "$CONTAINER_NAME" chown root:root "$CONTAINER_CUSTOM_CA_PATH"
+    docker exec -u 0 -ti "$CONTAINER_NAME" update-ca-certificates
+  fi
 }
 
 run_shell() {
