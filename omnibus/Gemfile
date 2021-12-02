@@ -24,7 +24,7 @@ gem "rubocop", group: :development
 # Visual Studio Code integration
 gem "debase", group: :development
 gem "reek", group: :development
-gem "ruby-debug-ide", group: :development
+# gem "ruby-debug-ide", group: :development
 gem "solargraph", group: :development
 
 gemspec
