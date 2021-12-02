@@ -6,7 +6,7 @@ CORE_PATH=$(cd "$(dirname "$(dirname "$0")")" && pwd)
 IMAGE_NAME="${IMAGE_NAME:=dependabot/dependabot-core-development}"
 CONTAINER_NAME="${CONTAINER_NAME:=dependabot-core-development}"
 CONTAINER_CUSTOM_CA_PATH=/usr/local/share/ca-certificates/dbot-ca.crt
-DOCKERFILE=Dockerfile.development
+DOCKERFILE="$CORE_PATH/Dockerfile.development"
 HELP=false
 REBUILD=false
 
@@ -43,9 +43,9 @@ build_image() {
     --build-arg "USER_UID=$(id -u)" \
     --build-arg "USER_GID=$(id -g)" \
     --cache-from "dependabot/dependabot-core:latest" \
-    -t dependabot/dependabot-core .
+    -t dependabot/dependabot-core "$CORE_PATH"
   echo "$(tput setaf 2)=> building image from $DOCKERFILE$(tput sgr0)"
-  docker build --build-arg BUILDKIT_INLINE_CACHE=1 -t "$IMAGE_NAME" -f "$DOCKERFILE" .
+  docker build --build-arg BUILDKIT_INLINE_CACHE=1 -t "$IMAGE_NAME" -f "$DOCKERFILE" "$CORE_PATH"
 }
 
 IMAGE_ID=$(docker inspect --type=image -f '{{.Id}}' "$IMAGE_NAME" 2> /dev/null || true)
