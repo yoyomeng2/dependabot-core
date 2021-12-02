@@ -224,7 +224,7 @@ stop_container() {
 }
 
 set +e
-RUNNING=$(docker ps --format '{{.Names}}' | grep "$CONTAINER_NAME")
+RUNNING=$(docker ps --format '{{.Names}}' | grep "$CONTAINER_NAME$")
 set -e
 if [ -n "$RUNNING" ]; then
   if [ -z "$BUILT_IMAGE" ]; then
