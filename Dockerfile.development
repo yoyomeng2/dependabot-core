@@ -58,3 +58,21 @@ RUN mkdir -p ~/.vscode-server ~/.vscode-server-insiders
 # Declare pass-thru environment variables used for debugging
 ENV LOCAL_GITHUB_ACCESS_TOKEN="" \
   LOCAL_CONFIG_VARIABLES=""
+
+# When Docker is hosted on Linux, we need to ensure that the UID and GID are
+# mapped to the same values in the container and host to avoid file permissions
+# issues with volume-mounted files. Use --build-arg in 'docker build' to set
+# HOST_UID and HOST_GID
+ARG HOST_UID=1000
+ARG HOST_GID=1000
+# USER_UID and USER_GID were defined in dependabot/dependabot-core, but ARG
+# is scoped to each build stage (Dockerfile) and must be redefined again.
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+USER root
+RUN test "$HOST_UID" -ne "$USER_UID" \
+   && groupmod -g "$HOST_GID" dependabot \
+   && usermod -u "$HOST_UID" dependabot \
+   && find "$CODE_DIR" -uid "$USER_UID" -exec chown --no-dereference "$HOST_UID" {} \\; \
+   && find "$CODE_DIR" -gid "$USER_GID" -exec chgrp --no-dereference "$HOST_GID" {} \\;
+USER dependabot
