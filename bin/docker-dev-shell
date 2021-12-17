@@ -135,8 +135,6 @@ docker run --rm -ti \
   -v "$(pwd)/python/.rubocop.yml:$CODE_DIR/python/.rubocop.yml" \
   -v "$(pwd)/python/Gemfile:$CODE_DIR/python/Gemfile" \
   -v "$(pwd)/python/dependabot-python.gemspec:$CODE_DIR/python/dependabot-python.gemspec" \
-  -v "$(pwd)/python/helpers:/opt/python" \
-  -v "$(pwd)/python/helpers:/opt/python/helpers" \
   -v "$(pwd)/python/lib:$CODE_DIR/python/lib" \
   -v "$(pwd)/python/spec:$CODE_DIR/python/spec" \
   -v "$(pwd)/python/script:$CODE_DIR/python/script" \
@@ -195,8 +193,6 @@ docker run --rm -ti \
   -v "$(pwd)/bundler/lib:$CODE_DIR/bundler/lib" \
   -v "$(pwd)/bundler/helpers:$CODE_DIR/bundler/helpers" \
   -v "$(pwd)/bundler/spec:$CODE_DIR/bundler/spec" \
-  -v "$(pwd)/bundler/helpers:/opt/bundler" \
-  -v "$(pwd)/bundler/helpers:/opt/bundler/helpers" \
   -v "$(pwd)/bundler/script:$CODE_DIR/bundler/script" \
   -v "$(pwd)/omnibus/.rubocop.yml:$CODE_DIR/omnibus/.rubocop.yml" \
   -v "$(pwd)/omnibus/Gemfile:$CODE_DIR/omnibus/Gemfile" \
