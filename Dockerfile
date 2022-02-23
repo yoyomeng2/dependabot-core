@@ -225,7 +225,7 @@ RUN apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(ls
 
 ### DART
 
-# Install Dart 
+# Install Dart
 ENV PUB_CACHE=/opt/dart/pub-cache \
   PUB_ENVIRONMENT="dependabot" \
   PATH="${PATH}:/opt/dart/dart-sdk/bin"
@@ -243,6 +243,7 @@ RUN curl --connect-timeout 15 --retry 5 "https://storage.googleapis.com/dart-arc
 RUN git clone https://github.com/dart-lang/pub.git /opt/dart/pub \
   && git -C /opt/dart/pub checkout 941191f7f83ad60259348860197cfcdd83bb8e6f \
   && dart pub global activate --source path /opt/dart/pub \
+  && dart --disable-analytics \
   && chmod -R o+r "/opt/dart/pub" \
   && chown -R dependabot:dependabot "$PUB_CACHE" \
   && chown -R dependabot:dependabot /opt/dart/pub
