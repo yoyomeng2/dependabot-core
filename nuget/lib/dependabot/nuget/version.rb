@@ -2,100 +2,38 @@
 
 require "dependabot/utils"
 require "rubygems_version_patch"
+require "semver_dialects"
 
-# Dotnet pre-release versions use 1.0.1-rc1 syntax, which Gem::Version
-# converts into 1.0.1.pre.rc1. We override the `to_s` method to stop that
-# alteration.
-# Dotnet also supports build versions, separated with a "+".
+# NuGet supports Semantic Versioning 2.0 since NuGet 4.3.0+
 module Dependabot
   module Nuget
     class Version < Gem::Version
-      attr_reader :build_info
-
-      VERSION_PATTERN = Gem::Version::VERSION_PATTERN + '(\+[0-9a-zA-Z\-.]+)?'
-      ANCHORED_VERSION_PATTERN = /\A\s*(#{VERSION_PATTERN})?\s*\z/.freeze
+      # rubocop:disable Layout/LineLength
+      SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/.freeze
+      # rubocop:enable Layout/LineLength
 
       def self.correct?(version)
         return false if version.nil?
 
-        version.to_s.match?(ANCHORED_VERSION_PATTERN)
+        version.to_s.match?(SEMVER_PATTERN)
       end
 
       def initialize(version)
-        @version_string = version.to_s
-
+        @semver = SemanticVersion.new(version.to_s)
         version, @build_info = version.to_s.split("+") if version.to_s.include?("+")
-
         super
       end
 
       def to_s
-        @version_string
+        @semver.to_s
       end
 
       def inspect # :nodoc:
-        "#<#{self.class} #{@version_string}>"
+        "#<#{self.class} #{@semver}>"
       end
 
       def <=>(other)
-        version_comparison = compare_release(other)
-        return version_comparison unless version_comparison.zero?
-
-        version_comparison = compare_prerelease_part(other)
-        return version_comparison unless version_comparison.zero?
-
-        compare_build_info(other)
-      end
-
-      def compare_release(other)
-        release_str = @version_string.split("-").first&.split("+")&.first || ""
-        other_release_str = other.to_s.split("-").first&.split("+")&.first || ""
-
-        Gem::Version.new(release_str).<=>(Gem::Version.new(other_release_str))
-      end
-
-      # rubocop:disable Metrics/PerceivedComplexity
-      def compare_prerelease_part(other)
-        release_str = @version_string.split("-").first&.split("+")&.first || ""
-        prerelease_string = @version_string.
-                            sub(release_str, "").
-                            sub("-", "").
-                            split("+").
-                            first
-        prerelease_string = nil if prerelease_string == ""
-
-        other_release_str = other.to_s.split("-").first&.split("+")&.first || ""
-        other_prerelease_string = other.to_s.
-                                  sub(other_release_str, "").
-                                  sub("-", "").
-                                  split("+").
-                                  first
-        other_prerelease_string = nil if other_prerelease_string == ""
-
-        return -1 if prerelease_string && !other_prerelease_string
-        return 1 if !prerelease_string && other_prerelease_string
-
-        prerelease_string.<=>(other_prerelease_string)
-      end
-
-      # rubocop:enable Metrics/PerceivedComplexity
-
-      def compare_build_info(other)
-        return build_info.nil? ? 0 : 1 unless other.is_a?(Nuget::Version)
-
-        # Build information comparison
-        lhsegments = build_info.to_s.split(".").map(&:downcase)
-        rhsegments = other.build_info.to_s.split(".").map(&:downcase)
-        limit = [lhsegments.count, rhsegments.count].min
-
-        lhs = ["1", *lhsegments.first(limit)].join(".")
-        rhs = ["1", *rhsegments.first(limit)].join(".")
-
-        local_comparison = Gem::Version.new(lhs) <=> Gem::Version.new(rhs)
-
-        return local_comparison unless local_comparison.zero?
-
-        lhsegments.count <=> rhsegments.count
+        @semver <=> SemanticVersion.new(other.to_s)
       end
     end
   end
