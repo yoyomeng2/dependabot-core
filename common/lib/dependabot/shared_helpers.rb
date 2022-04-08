@@ -91,6 +91,7 @@ module Dependabot
       end
 
       env_cmd = [env, cmd].compact
+      puts "RIUNNING #{env_cmd} #{stdin_data}"
       stdout, stderr, process = Open3.capture3(*env_cmd, stdin_data: stdin_data)
       time_taken = Time.now - start
 
@@ -114,6 +115,9 @@ module Dependabot
         process_exit_value: process.to_s,
         process_termsig: process.termsig
       }
+
+      puts "stderr: #{stderr}"
+      puts "PARSING: #{process.termsig} #{stdout}"
 
       response = JSON.parse(stdout)
       return response["result"] if process.success?

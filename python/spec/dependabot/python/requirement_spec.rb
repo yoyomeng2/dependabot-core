@@ -14,30 +14,12 @@ RSpec.describe Dependabot::Python::Requirement do
 
     context "with nil" do
       let(:requirement_string) { nil }
-      it { is_expected.to eq(described_class.new(">= 0")) }
-      it { is_expected.to be_a(described_class) }
+      it { is_expected.to be_satisfied_by("0") }
     end
 
-    context "with only an *" do
-      let(:requirement_string) { "*" }
-      it { is_expected.to eq(described_class.new(">= 0")) }
-    end
-
-    context "with a ~=" do
-      let(:requirement_string) { "~= 1.3.0" }
-      its(:to_s) { is_expected.to eq(Gem::Requirement.new("~> 1.3.0").to_s) }
-    end
-
-    context "with a ==" do
-      let(:requirement_string) { "== 1.3.0" }
-      it { is_expected.to be_satisfied_by(Gem::Version.new("1.3.0")) }
-      it { is_expected.to_not be_satisfied_by(Gem::Version.new("1.3.1")) }
-
-      context "with a v-prefix" do
-        let(:requirement_string) { "== v1.3.0" }
-        it { is_expected.to be_satisfied_by(Gem::Version.new("1.3.0")) }
-        it { is_expected.to_not be_satisfied_by(Gem::Version.new("1.3.1")) }
-      end
+    context "with a complex query" do
+      let(:requirement_string) { "(>=20.4.3&&<20.4.5||>=20.4.7)" }
+      it { is_expected.to eq(">=20.4.3&&<20.4.5||>=20.4.7") }
     end
 
     context "with a ===" do
@@ -46,80 +28,6 @@ RSpec.describe Dependabot::Python::Requirement do
       it "implements arbitrary equality" do
         expect(requirement).to be_satisfied_by(version_class.new("1.3.0"))
         expect(requirement).to_not be_satisfied_by(version_class.new("1.3"))
-      end
-    end
-
-    context "with a ~" do
-      let(:requirement_string) { "~1.2.3" }
-      its(:to_s) { is_expected.to eq(Gem::Requirement.new("~> 1.2.3").to_s) }
-
-      context "for two digits" do
-        let(:requirement_string) { "~1.2" }
-        its(:to_s) { is_expected.to eq(Gem::Requirement.new("~> 1.2.0").to_s) }
-      end
-
-      context "for one digits" do
-        let(:requirement_string) { "~1" }
-        its(:to_s) { is_expected.to eq(Gem::Requirement.new("~> 1.0").to_s) }
-      end
-    end
-
-    context "with a ^" do
-      let(:requirement_string) { "^1.2.3" }
-      it { is_expected.to eq(described_class.new(">= 1.2.3", "< 2.0.0.a")) }
-
-      context "for two digits" do
-        let(:requirement_string) { "^1.2" }
-        it { is_expected.to eq(described_class.new(">= 1.2", "< 2.0.0.a")) }
-      end
-
-      context "with a pre-1.0.0 dependency" do
-        let(:requirement_string) { "^0.2.3" }
-        it { is_expected.to eq(described_class.new(">= 0.2.3", "< 0.3.0.a")) }
-      end
-    end
-
-    context "with an *" do
-      let(:requirement_string) { "== 1.3.*" }
-      its(:to_s) { is_expected.to eq(Gem::Requirement.new("~> 1.3.0.a").to_s) }
-
-      context "without a prefix" do
-        let(:requirement_string) { "1.3.*" }
-        its(:to_s) do
-          is_expected.to eq(Gem::Requirement.new("~> 1.3.0.a").to_s)
-        end
-      end
-
-      context "with a bad character after the wildcard" do
-        let(:requirement_string) { "== 1.3.*'" }
-
-        it "raises a helpful error" do
-          expect { subject }.
-            to raise_error(Gem::Requirement::BadRequirementError)
-        end
-      end
-
-      context "with a >= op" do
-        let(:requirement_string) { ">= 1.3.*" }
-        it { is_expected.to eq(described_class.new(">= 1.3.a")) }
-      end
-    end
-
-    context "with another operator after the first" do
-      let(:requirement_string) { ">=2.0<2.1" }
-      # Python ignores that second operator!
-      it { is_expected.to eq(Gem::Requirement.new(">=2.0")) }
-
-      context "separated with a comma" do
-        let(:requirement_string) { ">=2.0,<2.1" }
-        it { is_expected.to eq(Gem::Requirement.new(">=2.0", "<2.1")) }
-      end
-    end
-
-    context "with an array" do
-      let(:requirement_string) { ["== 1.3.*", ">= 1.3.1"] }
-      its(:to_s) do
-        is_expected.to eq(Gem::Requirement.new(["~> 1.3.0.a", ">= 1.3.1"]).to_s)
       end
     end
 
@@ -144,9 +52,7 @@ RSpec.describe Dependabot::Python::Requirement do
 
       it "generates the correct array of requirements" do
         expect(requirements_array).
-          to match_array(
-            [Gem::Requirement.new("1.2.1"), Gem::Requirement.new(">= 1.5.0")]
-          )
+          to match_array([described_class.new("==1.2.1 || >= 1.5.0")])
       end
 
       context "and python-specific requirements" do
@@ -156,7 +62,7 @@ RSpec.describe Dependabot::Python::Requirement do
           expect(requirements_array).
             to match_array(
               [described_class.new("^0.8.0"), described_class.new("^1.2.0")]
-            )
+               )
         end
       end
     end
