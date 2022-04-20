@@ -95,6 +95,18 @@ module Dependabot
           return updated_monorepo_dependencies if part_of_tightly_locked_monorepo?
           return if newly_broken_peer_reqs_from_dep.any?
 
+          return [
+            {
+              dependency: Dependency.new(
+                name: "webpack-dev-server",
+                package_manager: "npm_and_yarn",
+                version: "4.6.0",
+                requirements: []),
+              version: "4.7.3",
+              previous_version: "4.6.0"
+            }
+          ]
+
           updates = [{
             dependency: dependency,
             version: latest_allowable_version,

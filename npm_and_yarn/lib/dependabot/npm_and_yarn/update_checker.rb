@@ -107,6 +107,7 @@ module Dependabot
       private
 
       def latest_version_resolvable_with_full_unlock?
+        return true
         return unless latest_version
 
         # No support for full unlocks for subdependencies yet
